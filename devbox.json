@@ -1,0 +1,15 @@
+{
+  "packages": [
+    "go@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      "echo 'SDL Go Common Library Development Environment'",
+      "echo 'Go version:' $(go version)"
+    ],
+    "scripts": {
+      "test": "go test ./... -v",
+      "build": "go build ./..."
+    }
+  }
+}
