@@ -157,6 +157,28 @@ func (c *Client) HLen(ctx context.Context, key string) (int64, error) {
 	return c.client.HLen(ctx, key).Result()
 }
 
+// --- Stream Advanced Operations ---
+
+// XPending returns summary information about pending messages in a consumer group.
+func (c *Client) XPending(ctx context.Context, stream, group string) (*redis.XPending, error) {
+	return c.client.XPending(ctx, stream, group).Result()
+}
+
+// XPendingExt returns detailed information about pending messages.
+func (c *Client) XPendingExt(ctx context.Context, args *redis.XPendingExtArgs) ([]redis.XPendingExt, error) {
+	return c.client.XPendingExt(ctx, args).Result()
+}
+
+// XClaim claims ownership of pending messages.
+func (c *Client) XClaim(ctx context.Context, args *redis.XClaimArgs) ([]redis.XMessage, error) {
+	return c.client.XClaim(ctx, args).Result()
+}
+
+// XLen returns the number of entries in a stream.
+func (c *Client) XLen(ctx context.Context, stream string) (int64, error) {
+	return c.client.XLen(ctx, stream).Result()
+}
+
 // --- Pub/Sub Operations ---
 
 // Publish publishes a message to a Pub/Sub channel.
