@@ -259,7 +259,7 @@ func TestScanPrepCompletedEventJSON(t *testing.T) {
 			{URL: "https://github.com/org/repo1", Ref: "main", ProjectID: "proj-1", JobID: "job-1"},
 			{URL: "https://github.com/org/repo2", Ref: "develop", ProjectID: "proj-2", JobID: "job-2"},
 		},
-		PrepCompletedAt: "2025-02-28T12:00:00Z",
+		PrepCompletedAt: time.Date(2025, 2, 28, 12, 0, 0, 0, time.UTC),
 	}
 
 	data, err := json.Marshal(event)

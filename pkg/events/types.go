@@ -151,7 +151,7 @@ type AggregatedResult struct {
 	CorrelationID         string         `json:"correlation_id"`
 	Status                string         `json:"status"` // "completed" or "partial_complete"
 	TotalRepositories     int            `json:"total_repositories"`
-	CompletedRepositories int            `json:"completed_repositories,omitempty"`
+	CompletedRepositories int            `json:"completed_repositories"`
 	TotalFindings         int            `json:"total_findings"`
 	BySeverity            map[string]int `json:"by_severity"`
 	TotalDurationSeconds  int            `json:"total_duration_seconds"`
@@ -174,7 +174,7 @@ type ScanPrepCompletedEvent struct {
 	CorrelationID          string           `json:"correlation_id"`
 	SuccessfulCount        int              `json:"successful_count"`
 	SuccessfulRepositories []RepositoryInfo `json:"successful_repositories"`
-	PrepCompletedAt        string           `json:"prep_completed_at"`
+	PrepCompletedAt        time.Time        `json:"prep_completed_at"`
 }
 
 // RepositoryInfo contains information about a successfully prepared repository.
