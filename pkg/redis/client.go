@@ -1,4 +1,4 @@
-// Package redis provides a Redis client wrapper for SDL agents.
+// Package redis provides a Redis client wrapper for Argus agents.
 //
 // It wraps github.com/redis/go-redis/v9 with convenience methods for Streams,
 // consumer groups, and common key-value operations used across the platform.

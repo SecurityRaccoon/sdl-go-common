@@ -1,4 +1,4 @@
-// Package logging provides structured JSON logging with Kubernetes context enrichment for SDL agents.
+// Package logging provides structured JSON logging with Kubernetes context enrichment for Argus agents.
 //
 // Usage:
 //

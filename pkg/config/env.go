@@ -1,4 +1,4 @@
-// Package config provides environment variable helpers for SDL agent configuration.
+// Package config provides environment variable helpers for Argus agent configuration.
 //
 // These helpers eliminate the copy-paste of getEnv/getIntEnv/getDurationEnv across agents.
 //

@@ -1,4 +1,4 @@
-// Package publisher provides a shared Redis Streams publisher for SDL agents.
+// Package publisher provides a shared Redis Streams publisher for Argus agents.
 //
 // It wraps XAdd with optional retry logic (linear or exponential backoff)
 // and context-aware sleep. All agents publish JSON data to streams; this

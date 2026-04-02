@@ -1,6 +1,6 @@
 # AGENTS.md — sdl-go-common
 
-Shared Go library for SDL platform agents. Provides Redis client, consumer/publisher framework, event types, config helpers, and structured logging. **Not a deployable service** — consumed by Go agents via `replace` directive.
+Shared Go library for Argus platform agents. Provides Redis client, consumer/publisher framework, event types, config helpers, and structured logging. **Not a deployable service** — consumed by Go agents via `replace` directive.
 
 ## 1. Orientation
 

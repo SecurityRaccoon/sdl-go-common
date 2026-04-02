@@ -1,4 +1,4 @@
-// Package consumer provides a shared Redis Streams consumer for SDL agents.
+// Package consumer provides a shared Redis Streams consumer for Argus agents.
 //
 // It implements the common consumption loop pattern used across all Go agents:
 // create consumer group, read messages via XReadGroup, process via callback,

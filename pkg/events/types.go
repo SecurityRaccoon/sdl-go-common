@@ -1,4 +1,4 @@
-// Package events provides canonical event types for the SDL scan pipeline.
+// Package events provides canonical event types for the Argus scan pipeline.
 //
 // These types define the wire format for events flowing through Redis Streams
 // across the scan pipeline: scanners -> scan-aggregate -> scan-enrich.
