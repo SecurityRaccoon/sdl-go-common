@@ -19,6 +19,7 @@ package consumer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -186,7 +187,7 @@ func (sc *StreamConsumer) readAndProcess(ctx context.Context) error {
 		sc.config.BlockTimeout,
 	)
 	if err != nil {
-		if err == goredis.Nil {
+		if errors.Is(err, goredis.Nil) {
 			return nil // No messages, normal timeout
 		}
 		return fmt.Errorf("failed to read from stream: %w", err)

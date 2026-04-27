@@ -233,7 +233,7 @@ func TestInitK8sContext_HostnameFallback(t *testing.T) {
 	}
 }
 
-func TestSetDefault_NilSafe(t *testing.T) {
+func TestSetDefault_NilSafe(_ *testing.T) {
 	// Should not panic
 	SetDefault(nil)
 }

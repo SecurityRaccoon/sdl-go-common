@@ -10,7 +10,7 @@ import (
 
 func TestNew_Defaults(t *testing.T) {
 	// New should set reasonable defaults when zero values are passed
-	handler := func(ctx context.Context, msg goredis.XMessage) error {
+	handler := func(_ context.Context, _ goredis.XMessage) error {
 		return nil
 	}
 
@@ -39,7 +39,7 @@ func TestNew_Defaults(t *testing.T) {
 }
 
 func TestNew_CustomValues(t *testing.T) {
-	handler := func(ctx context.Context, msg goredis.XMessage) error {
+	handler := func(_ context.Context, _ goredis.XMessage) error {
 		return nil
 	}
 
