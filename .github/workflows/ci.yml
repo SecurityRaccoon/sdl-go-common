@@ -11,7 +11,7 @@ permissions:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: k8s-arc-runners
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: k8s-arc-runners
     timeout-minutes: 10
     needs: [lint]
     steps:
@@ -73,7 +73,7 @@ jobs:
 
   security:
     name: Security
-    runs-on: ubuntu-latest
+    runs-on: k8s-arc-runners
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -101,7 +101,7 @@ jobs:
 
   auto-tag:
     name: Auto Tag
-    runs-on: ubuntu-latest
+    runs-on: k8s-arc-runners
     needs: [lint, test, security]
     if: github.ref == 'refs/heads/main'
     steps:
