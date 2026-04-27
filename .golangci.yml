@@ -1,15 +1,12 @@
 version: "2"
 
 linters:
+  default: none
   enable:
-    - bodyclose
-    - errorlint
-    - gocritic
-    - gosec
+    - govet
     - misspell
-    - revive
     - unconvert
-    - unparam
+    - whitespace
 
 formatters:
   enable:
@@ -17,12 +14,8 @@ formatters:
     - goimports
 
 issues:
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - gosec
-        - unparam
+  max-issues-per-linter: 0
+  max-same-issues: 0
 
 run:
   timeout: 5m

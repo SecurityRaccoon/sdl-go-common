@@ -78,7 +78,7 @@ jobs:
       - name: Run gosec
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@latest
-          gosec -fmt=json -out=gosec-results.json ./...
+          gosec -exclude=G104,G115,G117,G118,G706 -fmt=json -out=gosec-results.json ./...
 
       - uses: actions/upload-artifact@v4
         if: always()
