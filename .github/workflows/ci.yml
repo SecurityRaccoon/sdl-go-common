@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths-ignore: ["**.md", "docs/**", ".gitignore", "LICENSE"]
@@ -11,7 +12,8 @@ permissions:
 jobs:
   lint:
     name: Lint
-    runs-on: k8s-arc-runners
+    runs-on:
+  workflow_dispatch: k8s-arc-runners
     timeout-minutes: 10
     env:
       CGO_ENABLED: "0"
@@ -20,7 +22,8 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version:
+  workflow_dispatch: "1.25"
           cache: true
 
       - name: Verify go.mod and go.sum are tidy
@@ -39,7 +42,8 @@ jobs:
 
   test:
     name: Test
-    runs-on: k8s-arc-runners
+    runs-on:
+  workflow_dispatch: k8s-arc-runners
     timeout-minutes: 10
     needs: [lint]
     steps:
@@ -47,7 +51,8 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version:
+  workflow_dispatch: "1.25"
           cache: true
 
       - name: Install C headers for race detector
@@ -83,7 +88,8 @@ jobs:
 
   security:
     name: Security
-    runs-on: k8s-arc-runners
+    runs-on:
+  workflow_dispatch: k8s-arc-runners
     timeout-minutes: 10
     env:
       CGO_ENABLED: "0"
@@ -92,7 +98,8 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version:
+  workflow_dispatch: "1.25"
           cache: true
 
       - name: Run gosec
@@ -113,7 +120,8 @@ jobs:
 
   auto-tag:
     name: Auto Tag
-    runs-on: k8s-arc-runners
+    runs-on:
+  workflow_dispatch: k8s-arc-runners
     needs: [lint, test, security]
     if: github.ref == 'refs/heads/main'
     steps:
