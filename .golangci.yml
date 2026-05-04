@@ -4,11 +4,38 @@ linters:
   default: none
   enable:
     - bodyclose
+    - depguard
     - errorlint
     - govet
     - misspell
     - unconvert
     - whitespace
+  settings:
+    depguard:
+      rules:
+        service-boundaries:
+          list-mode: lax
+          allow:
+            - $gostd
+            - github.com/sdl-platform/sdl-go-common
+          deny:
+            - pkg: github.com/sdl-platform/sdl-agent-
+              desc: import shared contracts from sdl-go-common instead of another service
+            - pkg: scan-engine
+              desc: import shared contracts from sdl-go-common instead of another service
+            - pkg: sdl
+              desc: import shared contracts from sdl-go-common instead of another service
+            - pkg: sdl-trivy
+              desc: import shared contracts from sdl-go-common instead of another service
+  exclusions:
+    rules:
+      - path: '_test\.go'
+        linters:
+          - errcheck
+          - errorlint
+      - linters:
+          - errorlint
+        text: 'context\.Canceled|context\.DeadlineExceeded'
 
 formatters:
   enable:
@@ -18,14 +45,6 @@ formatters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    - path: '_test\.go'
-      linters:
-        - errcheck
-        - errorlint
-    - linters:
-        - errorlint
-      text: 'context\.Canceled|context\.DeadlineExceeded'
 
 run:
   timeout: 5m
