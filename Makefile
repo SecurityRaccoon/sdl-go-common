@@ -20,8 +20,14 @@ fmt: ## Format code
 clean: ## Clean test artifacts
 	rm -f *.out coverage.html
 
-install-hooks: ## Install git pre-commit hooks
+install-hooks: ## Install git hooks
 	@mkdir -p .git/hooks
-	cp scripts/git-hooks/pre-commit .git/hooks/pre-commit
-	chmod +x .git/hooks/pre-commit
-	@echo "Git hooks installed."
+	@for hook in scripts/git-hooks/*; do \
+		if [ -f "$$hook" ]; then \
+			cp "$$hook" ".git/hooks/$$(basename "$$hook")"; \
+			chmod +x ".git/hooks/$$(basename "$$hook")"; \
+			printf 'Installed %s hook\n' "$$(basename "$$hook")"; \
+		fi; \
+	done
+
+setup-hooks: install-hooks ## Install local verification hooks

@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schemas.sdl.dev/scan-prep-completed-event.schema.json",
+  "title": "ScanPrepCompletedEvent",
+  "type": "object",
+  "required": [
+    "scan_id",
+    "organization_id",
+    "correlation_id",
+    "successful_count",
+    "successful_repositories",
+    "prep_completed_at"
+  ],
+  "properties": {
+    "scan_id": {"type": "string", "minLength": 1},
+    "organization_id": {"type": "string", "minLength": 1},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "successful_count": {"type": "integer", "minimum": 0},
+    "successful_repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["url", "ref", "project_id", "job_id"],
+        "properties": {
+          "url": {"type": "string", "minLength": 1},
+          "ref": {"type": "string", "minLength": 1},
+          "project_id": {"type": "string", "minLength": 1},
+          "job_id": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": true
+      }
+    },
+    "prep_completed_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": true
+}
