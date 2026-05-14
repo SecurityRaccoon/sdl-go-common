@@ -102,7 +102,7 @@ jobs:
       - name: Run govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./... || echo "::warning::govulncheck found vulnerabilities — review before next Go version bump"
+          govulncheck ./...
 
   auto-tag:
     name: Auto Tag
