@@ -67,12 +67,15 @@ jobs:
           fi
 
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure() || cancelled()
+        continue-on-error: true
         with:
           name: coverage-report
           path: |
             coverage.out
             coverage-summary.txt
+          if-no-files-found: ignore
+          retention-days: 3
 
   security:
     name: Security
@@ -94,10 +97,13 @@ jobs:
           gosec -exclude=G104,G112,G115,G117,G118,G706 -fmt=json -out=gosec-results.json ./...
 
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure() || cancelled()
+        continue-on-error: true
         with:
           name: gosec-results
           path: gosec-results.json
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Run govulncheck
         run: |
