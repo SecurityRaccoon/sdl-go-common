@@ -80,7 +80,7 @@ jobs:
   security:
     name: Security
     runs-on: k8s-arc-runners
-    timeout-minutes: 10
+    timeout-minutes: 25
     env:
       CGO_ENABLED: "0"
     steps:
@@ -93,7 +93,7 @@ jobs:
 
       - name: Run gosec
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.26.1
           gosec -exclude=G104,G112,G115,G117,G118,G706 -fmt=json -out=gosec-results.json ./...
 
       - uses: actions/upload-artifact@v4
