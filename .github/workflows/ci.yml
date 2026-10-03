@@ -12,7 +12,7 @@ permissions:
 jobs:
   lint:
     name: Lint
-    runs-on: k8s-arc-runners
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       CGO_ENABLED: "0"
@@ -40,7 +40,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: k8s-arc-runners
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [lint]
     steps:
@@ -79,7 +79,7 @@ jobs:
 
   security:
     name: Security
-    runs-on: k8s-arc-runners
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
       CGO_ENABLED: "0"
