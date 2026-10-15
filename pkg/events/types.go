@@ -107,16 +107,17 @@ type Metrics struct {
 // unmarshalled into this struct. The Repository field may be empty when coming
 // from scanners; scan-aggregate falls back to the Target field.
 type ScanCompletedEvent struct {
-	JobID         string     `json:"job_id"`
-	ScanID        string     `json:"scan_id"`
-	CorrelationID string     `json:"correlation_id"`
-	ScannerType   string     `json:"scanner_type"`
-	Repository    Repository `json:"repository"`
-	Target        string     `json:"target,omitempty"` // Fallback for repository URL (used by scanners)
-	Status        string     `json:"status"`
-	Findings      []Finding  `json:"findings"`
-	Metrics       Metrics    `json:"metrics"`
-	CompletedAt   time.Time  `json:"completed_at"`
+	JobID          string     `json:"job_id"`
+	ScanID         string     `json:"scan_id"`
+	OrganizationID string     `json:"organization_id,omitempty"` // set by scanners; lets scan-aggregate attribute late results
+	CorrelationID  string     `json:"correlation_id"`
+	ScannerType    string     `json:"scanner_type"`
+	Repository     Repository `json:"repository"`
+	Target         string     `json:"target,omitempty"` // Fallback for repository URL (used by scanners)
+	Status         string     `json:"status"`
+	Findings       []Finding  `json:"findings"`
+	Metrics        Metrics    `json:"metrics"`
+	CompletedAt    time.Time  `json:"completed_at"`
 }
 
 // ScanResult stores the result from a single scanner+repository combination.
