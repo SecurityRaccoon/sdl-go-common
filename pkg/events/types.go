@@ -150,7 +150,8 @@ type AggregatedResult struct {
 	ScanID                string         `json:"scan_id"`
 	OrganizationID        string         `json:"organization_id"`
 	CorrelationID         string         `json:"correlation_id"`
-	Status                string         `json:"status"` // "completed" or "partial_complete"
+	Status                string         `json:"status"`               // "completed" or "partial_complete"
+	LateBatch             int            `json:"late_batch,omitempty"` // >0: results that arrived after the scan was aggregated
 	TotalRepositories     int            `json:"total_repositories"`
 	CompletedRepositories int            `json:"completed_repositories"`
 	TotalFindings         int            `json:"total_findings"`
