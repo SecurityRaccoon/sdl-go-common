@@ -1,6 +1,6 @@
 module github.com/sdl-platform/sdl-go-common
 
-go 1.25
+go 1.26.9
 
 require (
 	github.com/alicebob/miniredis/v2 v2.35.0
