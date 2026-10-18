@@ -2,8 +2,14 @@
 //
 // It implements the common consumption loop pattern used across all Go agents:
 // create consumer group, read messages via XReadGroup, process via callback,
-// acknowledge on success. Advanced features (DLQ, pending recovery, dead
-// consumer claiming) are opt-in via Config fields.
+// acknowledge on success.
+//
+// Redelivery is on by default: every ClaimInterval (60s) the consumer runs
+// XAUTOCLAIM over the whole group PEL (its own and other consumers' messages
+// idle longer than ClaimMinIdle) and retries them. A message delivered more
+// than MaxDeliveries times is copied to a size-capped dead-letter stream
+// ({stream}.dlq, approx MAXLEN DLQMaxLen) and acknowledged, so one failed call
+// can no longer leave a message pending until the pod restarts.
 //
 // Usage:
 //
@@ -60,15 +66,32 @@ type Config struct {
 	// Optional: pending recovery on startup
 	RecoverPending bool // If true, processes pending messages on startup via XPENDING+XCLAIM
 
-	// Optional: dead consumer claiming
-	ClaimInterval time.Duration // If >0, periodically claims old pending messages from dead consumers
-	ClaimMinIdle  time.Duration // Minimum idle time before claiming (default: 5m)
+	// Periodic redelivery (XAUTOCLAIM of own and other consumers' idle messages).
+	ClaimInterval time.Duration // Reclaim cycle (default 60s; negative disables)
+	ClaimMinIdle  time.Duration // Minimum idle time before a pending message is retried (default: 5m)
 	ClaimBatch    int64         // Max messages to claim per cycle (default: 100)
+
+	// Max deliveries before dead-lettering (default 5; negative disables).
+	MaxDeliveries int64
+	// Dead-letter stream for messages over MaxDeliveries (default "{Stream}.dlq").
+	DLQStream string
+	// Approximate MAXLEN for the dead-letter stream (default 10000).
+	DLQMaxLen int64
+	// Payloads larger than this are stored as a summary in the DLQ (default 64KiB).
+	DLQMaxInlineBytes int
 
 	// Optional: metrics/observability hooks
 	OnProcessed func(stream, status string, duration time.Duration) // Called after each message
 	OnError     func(operation, detail string)                      // Called on errors
 }
+
+// Defaults for redelivery and dead-lettering.
+const (
+	DefaultClaimInterval     = 60 * time.Second
+	DefaultMaxDeliveries     = 5
+	DefaultDLQMaxLen         = 10000
+	DefaultDLQMaxInlineBytes = 64 * 1024
+)
 
 // StreamConsumer consumes messages from a Redis Stream using consumer groups.
 type StreamConsumer struct {
@@ -94,6 +117,21 @@ func New(client *redis.Client, cfg Config) *StreamConsumer {
 	}
 	if cfg.ClaimBatch == 0 {
 		cfg.ClaimBatch = 100
+	}
+	if cfg.ClaimInterval == 0 {
+		cfg.ClaimInterval = DefaultClaimInterval
+	}
+	if cfg.MaxDeliveries == 0 {
+		cfg.MaxDeliveries = DefaultMaxDeliveries
+	}
+	if cfg.DLQStream == "" {
+		cfg.DLQStream = cfg.Stream + ".dlq"
+	}
+	if cfg.DLQMaxLen == 0 {
+		cfg.DLQMaxLen = DefaultDLQMaxLen
+	}
+	if cfg.DLQMaxInlineBytes == 0 {
+		cfg.DLQMaxInlineBytes = DefaultDLQMaxInlineBytes
 	}
 
 	return &StreamConsumer{
@@ -132,8 +170,13 @@ func (sc *StreamConsumer) Start(ctx context.Context) error {
 		slog.String("stream", sc.config.Stream),
 		slog.String("group", sc.config.Group))
 
-	// Optional: periodic dead consumer claiming
+	// Periodic redelivery of idle pending messages (own and other consumers').
 	if sc.config.ClaimInterval > 0 {
+		if err := sc.claimOldPendingMessages(ctx); err != nil {
+			sc.logger.Warn("Failed to reclaim pending messages",
+				slog.String("component", "consumer"),
+				slog.Any("error", err))
+		}
 		claimTicker := time.NewTicker(sc.config.ClaimInterval)
 		defer claimTicker.Stop()
 
@@ -280,6 +323,10 @@ func (sc *StreamConsumer) processPendingMessages(ctx context.Context) error {
 		slog.Int("count", len(pending)))
 
 	for _, p := range pending {
+		if sc.overDeliveryLimit(p.RetryCount + 1) {
+			sc.deadLetter(ctx, p.ID, p.RetryCount)
+			continue
+		}
 		messages, err := sc.client.XClaim(ctx, &goredis.XClaimArgs{
 			Stream:   sc.config.Stream,
 			Group:    sc.config.Group,
@@ -303,60 +350,180 @@ func (sc *StreamConsumer) processPendingMessages(ctx context.Context) error {
 	return nil
 }
 
-// claimOldPendingMessages claims messages from dead/idle consumers.
+// claimOldPendingMessages retries pending messages idle longer than
+// ClaimMinIdle, from any consumer in the group including this one (a message
+// whose handler failed stays in this consumer's PEL and was previously only
+// retried on restart). It walks the PEL with XAUTOCLAIM, one batch per cycle.
+// Messages delivered more than MaxDeliveries times are dead-lettered and ACKed.
 func (sc *StreamConsumer) claimOldPendingMessages(ctx context.Context) error {
-	pending, err := sc.client.XPendingExt(ctx, &goredis.XPendingExtArgs{
-		Stream: sc.config.Stream,
-		Group:  sc.config.Group,
-		Start:  "-",
-		End:    "+",
-		Count:  sc.config.ClaimBatch,
-		Idle:   sc.config.ClaimMinIdle,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to check pending messages: %w", err)
-	}
-
-	if len(pending) == 0 {
-		return nil
-	}
-
-	sc.logger.Info("Found old pending messages from dead consumers",
-		slog.String("component", "consumer"),
-		slog.Int("count", len(pending)))
-
-	for _, p := range pending {
-		if p.Consumer == sc.config.Consumer {
-			continue // Skip own pending messages
-		}
-
-		sc.logger.Info("Claiming message from dead consumer",
-			slog.String("component", "consumer"),
-			slog.String("message_id", p.ID),
-			slog.String("original_consumer", p.Consumer),
-			slog.Duration("idle_time", p.Idle))
-
-		messages, err := sc.client.XClaim(ctx, &goredis.XClaimArgs{
+	rdb := sc.client.GetClient()
+	start := "0-0"
+	claimed := 0
+	for {
+		messages, next, err := rdb.XAutoClaim(ctx, &goredis.XAutoClaimArgs{
 			Stream:   sc.config.Stream,
 			Group:    sc.config.Group,
 			Consumer: sc.config.Consumer,
 			MinIdle:  sc.config.ClaimMinIdle,
-			Messages: []string{p.ID},
-		})
+			Start:    start,
+			Count:    sc.config.ClaimBatch,
+		}).Result()
 		if err != nil {
-			sc.logger.Error("Failed to claim message from dead consumer",
-				slog.String("component", "consumer"),
-				slog.String("message_id", p.ID),
-				slog.Any("error", err))
-			continue
+			return fmt.Errorf("xautoclaim: %w", err)
 		}
-
 		for _, msg := range messages {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			claimed++
+			if msg.Values == nil {
+				// Entry was trimmed from the stream; nothing to retry.
+				_ = sc.client.XAck(ctx, sc.config.Stream, sc.config.Group, msg.ID)
+				continue
+			}
+			deliveries := sc.deliveryCount(ctx, msg.ID)
+			if sc.overDeliveryLimit(deliveries) {
+				sc.deadLetterMessage(ctx, msg, deliveries-1)
+				continue
+			}
+			sc.logger.Info("Retrying pending message",
+				slog.String("component", "consumer"),
+				slog.String("stream", sc.config.Stream),
+				slog.String("message_id", msg.ID),
+				slog.Int64("delivery", deliveries))
 			sc.handleMessage(ctx, msg)
 		}
+		// One full batch per cycle keeps the read loop responsive; the cursor
+		// restarts at 0-0 next cycle, already-retried messages are not idle yet.
+		if next == "0-0" || next == "" || int64(claimed) >= sc.config.ClaimBatch {
+			break
+		}
+		start = next
 	}
-
+	if claimed > 0 {
+		sc.logger.Info("Reclaimed pending messages",
+			slog.String("component", "consumer"),
+			slog.String("stream", sc.config.Stream),
+			slog.String("group", sc.config.Group),
+			slog.Int("count", claimed))
+	}
 	return nil
+}
+
+// deliveryCount returns the delivery count of a pending message (after the
+// claim that just happened). Returns 0 if it cannot be determined.
+func (sc *StreamConsumer) deliveryCount(ctx context.Context, id string) int64 {
+	p, err := sc.client.XPendingExt(ctx, &goredis.XPendingExtArgs{
+		Stream: sc.config.Stream,
+		Group:  sc.config.Group,
+		Start:  id,
+		End:    id,
+		Count:  1,
+	})
+	if err != nil || len(p) == 0 {
+		return 0
+	}
+	return p[0].RetryCount
+}
+
+func (sc *StreamConsumer) overDeliveryLimit(deliveries int64) bool {
+	return sc.config.MaxDeliveries > 0 && deliveries > sc.config.MaxDeliveries
+}
+
+// deadLetter loads a pending message by id and dead-letters it.
+func (sc *StreamConsumer) deadLetter(ctx context.Context, id string, attempts int64) {
+	msgs, err := sc.client.GetClient().XRangeN(ctx, sc.config.Stream, id, id, 1).Result()
+	if err != nil || len(msgs) == 0 {
+		// Trimmed or unreadable: drop it from the PEL so it stops counting.
+		_ = sc.client.XAck(ctx, sc.config.Stream, sc.config.Group, id)
+		return
+	}
+	sc.deadLetterMessage(ctx, msgs[0], attempts)
+}
+
+// deadLetterMessage copies a message to the capped DLQ stream and ACKs it.
+// If a DLQHandler is configured it is called instead of the built-in writer.
+func (sc *StreamConsumer) deadLetterMessage(ctx context.Context, msg goredis.XMessage, attempts int64) {
+	reason := fmt.Errorf("max deliveries exceeded: delivered %d times (max=%d)", attempts, sc.config.MaxDeliveries)
+	if sc.config.DLQHandler != nil {
+		sc.config.DLQHandler(ctx, msg, reason)
+	} else if err := sc.writeDLQ(ctx, msg, reason, attempts); err != nil {
+		// Keep the message pending rather than lose it if the DLQ write fails.
+		sc.logger.Error("Failed to dead-letter message",
+			slog.String("component", "consumer"),
+			slog.String("stream", sc.config.Stream),
+			slog.String("message_id", msg.ID),
+			slog.Any("error", err))
+		if sc.config.OnError != nil {
+			sc.config.OnError("dead_letter", err.Error())
+		}
+		return
+	}
+	if err := sc.client.XAck(ctx, sc.config.Stream, sc.config.Group, msg.ID); err != nil {
+		sc.logger.Warn("Failed to ACK dead-lettered message",
+			slog.String("component", "consumer"),
+			slog.String("message_id", msg.ID),
+			slog.Any("error", err))
+	}
+	sc.logger.Warn("Message dead-lettered",
+		slog.String("component", "consumer"),
+		slog.String("stream", sc.config.Stream),
+		slog.String("group", sc.config.Group),
+		slog.String("dlq_stream", sc.config.DLQStream),
+		slog.String("message_id", msg.ID),
+		slog.Int64("deliveries", attempts))
+	if sc.config.OnProcessed != nil {
+		sc.config.OnProcessed(sc.config.Stream, "dead_lettered", 0)
+	}
+}
+
+// writeDLQ appends a capped DLQ entry. Large bodies are replaced by per-field
+// sizes; the original stays addressable by original_stream/original_id.
+func (sc *StreamConsumer) writeDLQ(ctx context.Context, msg goredis.XMessage, reason error, attempts int64) error {
+	data, truncated, size := dlqData(msg.Values, sc.config.DLQMaxInlineBytes)
+	values := map[string]interface{}{
+		"original_stream": sc.config.Stream,
+		"original_id":     msg.ID,
+		"consumer_group":  sc.config.Group,
+		"consumer":        sc.config.Consumer,
+		"error_type":      "MaxDeliveriesExceeded",
+		"error_message":   reason.Error(),
+		"retry_count":     fmt.Sprintf("%d", attempts),
+		"timestamp":       time.Now().UTC().Format(time.RFC3339),
+		"data":            data,
+	}
+	if truncated {
+		values["data_truncated"] = "true"
+		values["data_bytes"] = fmt.Sprintf("%d", size)
+	}
+	return sc.client.GetClient().XAdd(ctx, &goredis.XAddArgs{
+		Stream: sc.config.DLQStream,
+		MaxLen: sc.config.DLQMaxLen,
+		Approx: true,
+		Values: values,
+	}).Err()
+}
+
+func dlqData(values map[string]interface{}, maxInline int) (string, bool, int) {
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return "{}", true, 0
+	}
+	if len(raw) <= maxInline {
+		return string(raw), false, len(raw)
+	}
+	summary := map[string]interface{}{"_truncated": true}
+	sizes := map[string]int{}
+	for k, v := range values {
+		str := fmt.Sprint(v)
+		sizes[k] = len(str)
+		if len(str) <= 256 {
+			summary[k] = str
+		}
+	}
+	summary["_field_bytes"] = sizes
+	out, _ := json.Marshal(summary)
+	return string(out), true, len(raw)
 }
 
 // GetPendingCount returns the number of pending messages for this consumer group.
